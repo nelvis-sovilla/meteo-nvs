@@ -11,16 +11,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- ICONE SVG CON METODO UTF-8 (Disegno ridimensionato per evitare il taglio dei bordi) -->
+    <!-- ICONE SVG RIDIMENSIONATE (-25 -25 150 150) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-25 -25 150 150'><rect x='-25' y='-25' width='150' height='150' fill='%23000000'/><circle cx='34' cy='32' r='18' fill='%23FF9500'/><circle cx='30' cy='56' r='14' fill='%23FFFFFF'/><circle cx='50' cy='46' r='20' fill='%23FFFFFF'/><circle cx='70' cy='54' r='15' fill='%23FFFFFF'/><rect x='30' y='46' width='40' height='24' fill='%23FFFFFF'/><path d='M 52 72 C 45 80, 43 85, 43 88 A 9 9 0 0 0 61 88 C 61 85, 59 80, 52 72 Z' fill='%235B9BD5' transform='rotate(25 52 80)'/></svg>">
     <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-25 -25 150 150'><rect x='-25' y='-25' width='150' height='150' fill='%23000000'/><circle cx='34' cy='32' r='18' fill='%23FF9500'/><circle cx='30' cy='56' r='14' fill='%23FFFFFF'/><circle cx='50' cy='46' r='20' fill='%23FFFFFF'/><circle cx='70' cy='54' r='15' fill='%23FFFFFF'/><rect x='30' y='46' width='40' height='24' fill='%23FFFFFF'/><path d='M 52 72 C 45 80, 43 85, 43 88 A 9 9 0 0 0 61 88 C 61 85, 59 80, 52 72 Z' fill='%235B9BD5' transform='rotate(25 52 80)'/></svg>">
-    
-    <!-- MANIFEST INLINE UTF-8 (Codificato correttamente come l'app Bussola Celeste) -->
+
+    <!-- MANIFEST INLINE UTF-8 AGGIORNATO CON VIEWBOX 150x150 -->
     <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Meteo%20Mobile%22%2C%22short_name%22%3A%22Meteo%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23000000%22%2C%22theme_color%22%3A%22%23000000%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage/svg%2Bxml%3Butf8%2C%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%27-25%20-25%20150%20150%27%3E%3Crect%20x%3D%27-25%27%20y%3D%27-25%27%20width%3D%27150%27%20height%3D%27150%27%20fill%3D%27%2523000000%27/%3E%3Ccircle%20cx%3D%2734%27%20cy%3D%2732%27%20r%3D%2718%27%20fill%3D%27%2523FF9500%27/%3E%3Ccircle%20cx%3D%2730%27%20cy%3D%2756%27%20r%3D%2714%27%20fill%3D%27%2523FFFFFF%27/%3E%3Ccircle%20cx%3D%2750%27%20cy%3D%2746%27%20r%3D%2720%27%20fill%3D%27%2523FFFFFF%27/%3E%3Ccircle%20cx%3D%2770%27%20cy%3D%2754%27%20r%3D%2715%27%20fill%3D%27%2523FFFFFF%27/%3E%3Crect%20x%3D%2730%27%20y%3D%2746%27%20width%3D%2740%27%20height%3D%2724%27%20fill%3D%27%2523FFFFFF%27/%3E%3Cpath%20d%3D%27M%2052%2072%20C%2045%2080%2C%2043%2085%2C%2043%2088%20A%209%209%200%200%200%2061%2088%20C%2061%2085%2C%2059%2080%2C%2052%2072%20Z%27%20fill%3D%27%25235B9BD5%27%20transform%3D%27rotate%2825%2052%2080%29%27/%3E%3C/svg%3E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image/svg%2Bxml%22%2C%22purpose%22%3A%22any%20maskable%22%7D%5D%7D">
-    
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-   
+    
     <!-- Font Google: Inter e Doto -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -512,7 +512,7 @@
         <div class="top-status">
             <div class="status-badge ndot-font" onclick="requestLocation(true)" title="Tocca per riprovare GPS">
                 <span class="status-dot"></span>
-                <span id="updateIndicator">ONLINE</span>
+                <span id="updateIndicator">RICERCA GPS...</span>
             </div>
             <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Schermo Intero">
                 <svg id="fullscreenIcon" viewBox="0 0 24 24" width="12" height="12" fill="#fff"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
@@ -710,12 +710,18 @@
         };
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadFavorites();
-            const loadedFromCache = loadCachedData();
+            /* INIZIALIZZA LA MAPPA PER PRIMA COSA PER EVITARE MAPPA O RADAR BLOCCATI */
             initMap();
+            loadFavorites();
             setupControls();
             
-            requestLocation(!loadedFromCache);
+            const loadedFromCache = loadCachedData();
+            
+            /* CARICA SEMPRE IL RADAR ALL'AVVIO */
+            fetchRadarData();
+            
+            /* AVVIA LA RICERCA GPS MOSTRANDO SUBITO LO STATO CORRETTO */
+            requestLocation(true);
         });
 
         function getNearestCity(lat, lon) {
@@ -1154,6 +1160,7 @@
         }
 
         function initMap() {
+            if (map) return;
             map = L.map('map', {
                 zoomControl: false,
                 attributionControl: false,
@@ -1181,21 +1188,25 @@
                 iconAnchor: [7, 7]
             });
             gpsMarker = L.marker(initialMapCenter, { icon: redDotIcon, zIndexOffset: 1000 }).addTo(map);
+
+            setTimeout(() => { if (map) map.invalidateSize(); }, 300);
         }
 
         function updateMapCenter(lat, lon) {
             initialMapCenter = [lat, lon];
-            map.setView(initialMapCenter, INITIAL_ZOOM);
+            if (map) {
+                map.setView(initialMapCenter, map.getZoom() || INITIAL_ZOOM);
 
-            if (gpsMarker) map.removeLayer(gpsMarker);
-            const redDotIcon = L.divIcon({
-                className: 'gps-marker-ring',
-                iconSize: [14, 14],
-                iconAnchor: [7, 7]
-            });
-            gpsMarker = L.marker([lat, lon], { icon: redDotIcon, zIndexOffset: 1000 }).addTo(map);
-            
-            setTimeout(() => { if (map) map.invalidateSize(); }, 200);
+                if (gpsMarker) map.removeLayer(gpsMarker);
+                const redDotIcon = L.divIcon({
+                    className: 'gps-marker-ring',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                gpsMarker = L.marker([lat, lon], { icon: redDotIcon, zIndexOffset: 1000 }).addTo(map);
+                
+                setTimeout(() => { map.invalidateSize(); }, 100);
+            }
         }
 
         async function fetchRadarData() {
@@ -1206,15 +1217,16 @@
                 satelliteTimestamps = (data.satellite && data.satellite.infrared) ? data.satellite.infrared : [];
 
                 const slider = document.getElementById('timeSlider');
-                slider.max = radarTimestamps.length - 1;
-                currentFrameIndex = 0;
+                slider.max = Math.max(0, radarTimestamps.length - 1);
+                currentFrameIndex = radarTimestamps.length > 0 ? radarTimestamps.length - 1 : 0;
 
+                if (map) map.invalidateSize();
                 startAnimation();
             } catch (e) { console.error("Errore Radar", e); }
         }
 
         function setRadarFrame(index) {
-            if (!radarTimestamps || !radarTimestamps[index]) return;
+            if (!radarTimestamps || !radarTimestamps[index] || !map) return;
             currentFrameIndex = index;
             document.getElementById('timeSlider').value = index;
 
@@ -1279,7 +1291,7 @@
             if (isPlaying) {
                 stopAnimation();
             } else {
-                map.setView(initialMapCenter, INITIAL_ZOOM);
+                if (map) map.setView(initialMapCenter, INITIAL_ZOOM);
                 startAnimation();
             }
         }
