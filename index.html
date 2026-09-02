@@ -738,6 +738,7 @@
             satelliteTimestamps = [];
             document.getElementById('radarTime').innerText = '--:--';
             document.getElementById('timeSlider').value = 0;
+            currentFrameIndex = 0;
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1258,7 +1259,9 @@
 
                 const slider = document.getElementById('timeSlider');
                 slider.max = Math.max(0, radarTimestamps.length - 1);
-                currentFrameIndex = radarTimestamps.length > 0 ? radarTimestamps.length - 1 : 0;
+                
+                /* PARTE DALL'INDICE 0 (IL FRAME PIÙ VECCHIO) */
+                currentFrameIndex = 0;
 
                 if (map) map.invalidateSize();
                 startAnimation();
