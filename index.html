@@ -709,7 +709,7 @@
             99: { desc: 'Temporale forte', day: 'temporale', night: 'temporale' }
         };
 
-        /* FUNZIONE PER CANCELLARE SCHEDE METEO E PRECIPITAZIONI SUL RADAR IN FASE DI RICERCA */
+        /* AZZERA I DATI MOSTRANDO LE SCHEDE ORARIE GRIGIE VUOTE E PULENDO IL RADAR */
         function clearUIData() {
             document.getElementById('mainTemp').innerText = '--°';
             document.getElementById('feelsLike').innerText = '--°';
@@ -720,7 +720,14 @@
             document.getElementById('mainIcon').innerHTML = '';
             document.getElementById('moonPhaseBox').style.display = 'none';
 
-            document.getElementById('hourlyForecast').innerHTML = '';
+            /* Genera 12 schede orarie grigie vuote */
+            const container = document.getElementById('hourlyForecast');
+            container.innerHTML = '';
+            for (let i = 0; i < 12; i++) {
+                const card = document.createElement('div');
+                card.className = 'hour-card';
+                container.appendChild(card);
+            }
 
             stopAnimation();
             if (map) {
@@ -742,14 +749,9 @@
             loadFavorites();
             setupControls();
             
-            const loadedFromCache = loadCachedData();
-            
-            if (loadedFromCache) {
-                fetchRadarData();
-                requestLocation(false);
-            } else {
-                requestLocation(true);
-            }
+            /* AZZERA LA SCHERMATA ED AVVIA LA RICERCA ALL'AVVIO */
+            clearUIData();
+            requestLocation(true);
         });
 
         function getNearestCity(lat, lon) {
@@ -1045,6 +1047,7 @@
         }
 
         async function fetchWeatherData(lat, lon, statusText = "ONLINE") {
+            const startTime = Date.now();
             setUpdateState("AGGIORNAMENTO...");
             try {
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,precipitation_probability,wind_speed_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
@@ -1055,6 +1058,12 @@
 
                 localStorage.setItem('weatherData', JSON.stringify(data));
                 
+                /* GARANTISCE ALMENO 500ms DI TEMPO DI RESET PER FEEDBACK VISIVO */
+                const elapsed = Date.now() - startTime;
+                if (elapsed < 500) {
+                    await new Promise(r => setTimeout(r, 500 - elapsed));
+                }
+
                 renderWeather(data);
                 updateMapCenter(lat, lon);
                 fetchRadarData();
