@@ -515,7 +515,7 @@
                 <span id="updateIndicator">RICERCA GPS...</span>
             </div>
             <div style="display:flex; gap:6px;">
-                <!-- PULSANTE ATTIVAZIONE/DISATTIVAZIONE AUDIO -->
+                <!-- PULSANTE AUDIO -->
                 <button class="fullscreen-btn" id="soundBtn" onclick="toggleSound()" title="Attiva/Disattiva Audio d'Atmosfera">
                     <span id="soundIcon">🔇</span>
                 </button>
@@ -662,7 +662,7 @@
 
         const dropIconSvg = `<svg width="8" height="12" viewBox="0 0 12 18" fill="#888888" style="vertical-align: -1.5px;"><path d="M6 18c-3.3 0-6-2.7-6-6 0-3.9 6-12 6-12s6 8.1 6 12c0 3.3-2.7 6-6 6z"/></svg>`;
 
-        /* --- MOTORE AUDIO SINTETIZZATO NATIVO (WEB AUDIO API) --- */
+        /* --- MOTORE AUDIO AVANZATO (RISINTESI SPETTRALE & ADDITIVA) --- */
         let audioCtx = null;
         let isSoundOn = false;
         let currentAudioNodes = [];
@@ -711,7 +711,7 @@
             }
         }
 
-        function createNoiseBuffer(duration = 2) {
+        function createNoiseBuffer(duration = 3) {
             if (!audioCtx) return null;
             const bufferSize = audioCtx.sampleRate * duration;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -726,121 +726,153 @@
             stopWeatherSound();
             if (!isSoundOn || !audioCtx) return;
 
-            /* 1. PIOGGIA DEBOLE / FORTE / TEMPORALE / GRANDINE */
+            /* 1. PIOGGIA, TEMPORALE, GRANDINE (OPZIONE 1: FILTRAGGIO SPETTRALE MULTI-STADIO) */
             if (key === 'pioggiaDebole' || key === 'pioggiaForte' || key === 'temporale' || key === 'grandine') {
                 const noiseBuf = createNoiseBuffer(3);
                 const noise = audioCtx.createBufferSource();
                 noise.buffer = noiseBuf;
                 noise.loop = true;
 
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'lowpass';
-                filter.frequency.value = key === 'pioggiaDebole' ? 1000 : 2500;
+                /* Filtro 1: Corpo e impatto pioggia (Lowpass) */
+                const lpFilter = audioCtx.createBiquadFilter();
+                lpFilter.type = 'lowpass';
+                lpFilter.frequency.value = key === 'pioggiaDebole' ? 800 : (key === 'grandine' ? 3200 : 2200);
+
+                /* Filtro 2: Risonanza acustica delle gocce sul terreno (Bandpass) */
+                const bpFilter = audioCtx.createBiquadFilter();
+                bpFilter.type = 'bandpass';
+                bpFilter.frequency.value = key === 'grandine' ? 2500 : 1200;
+                bpFilter.Q.value = 1.2;
 
                 const gain = audioCtx.createGain();
-                gain.gain.value = key === 'pioggiaDebole' ? 0.12 : 0.28;
+                gain.gain.value = key === 'pioggiaDebole' ? 0.1 : 0.25;
 
-                noise.connect(filter);
-                filter.connect(gain);
+                noise.connect(lpFilter);
+                lpFilter.connect(bpFilter);
+                bpFilter.connect(gain);
                 gain.connect(audioCtx.destination);
                 noise.start();
-                currentAudioNodes.push(noise, filter, gain);
+                currentAudioNodes.push(noise, lpFilter, bpFilter, gain);
 
                 if (key === 'temporale') {
                     soundLoopTimer = setInterval(() => {
                         if (!isSoundOn) return;
+                        const t = audioCtx.currentTime;
                         const tGain = audioCtx.createGain();
-                        tGain.gain.setValueAtTime(0.01, audioCtx.currentTime);
-                        tGain.gain.exponentialRampToValueAtTime(0.5, audioCtx.currentTime + 0.2);
-                        tGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2.5);
+                        tGain.gain.setValueAtTime(0.001, t);
+                        tGain.gain.exponentialRampToValueAtTime(0.6, t + 0.15);
+                        tGain.gain.exponentialRampToValueAtTime(0.001, t + 2.8);
 
                         const tFilter = audioCtx.createBiquadFilter();
                         tFilter.type = 'lowpass';
-                        tFilter.frequency.value = 140;
+                        tFilter.frequency.value = 110;
 
                         const tNoise = audioCtx.createBufferSource();
                         tNoise.buffer = createNoiseBuffer(3);
                         tNoise.connect(tFilter);
                         tFilter.connect(tGain);
                         tGain.connect(audioCtx.destination);
-                        tNoise.start();
-                    }, 6500);
+                        tNoise.start(t);
+                    }, 6000);
                 }
             }
-            /* 2. SERENO GIORNO (Cinguettii Uccellini) */
+            /* 2. UCCELLINI (OPZIONE 2: SINTESI ADDITIVA MULTI-OSCILLATORE HARMONIC) */
             else if (key === 'sun' || key === 'sunPoco' || key === 'sunCloud') {
-                function triggerBird() {
+                function triggerAdditiveBird() {
                     if (!isSoundOn) return;
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
                     const t = audioCtx.currentTime;
+                    
+                    const osc1 = audioCtx.createOscillator(); /* Tono fondamentale */
+                    const osc2 = audioCtx.createOscillator(); /* Armonica superiore */
+                    const gain = audioCtx.createGain();
 
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(2200 + Math.random() * 400, t);
-                    osc.frequency.exponentialRampToValueAtTime(3600 + Math.random() * 400, t + 0.14);
+                    osc1.type = 'sine';
+                    osc2.type = 'sine';
 
-                    gain.gain.setValueAtTime(0.04, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+                    const baseFreq = 2300 + Math.random() * 500;
+                    osc1.frequency.setValueAtTime(baseFreq, t);
+                    osc1.frequency.exponentialRampToValueAtTime(baseFreq + 1200, t + 0.12);
+                    
+                    osc2.frequency.setValueAtTime(baseFreq * 2, t);
+                    osc2.frequency.exponentialRampToValueAtTime((baseFreq + 1200) * 2, t + 0.12);
 
-                    osc.connect(gain);
+                    gain.gain.setValueAtTime(0.035, t);
+                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+                    osc1.connect(gain);
+                    osc2.connect(gain);
                     gain.connect(audioCtx.destination);
-                    osc.start(t);
-                    osc.stop(t + 0.15);
+
+                    osc1.start(t); osc2.start(t);
+                    osc1.stop(t + 0.13); osc2.stop(t + 0.13);
                 }
 
-                triggerBird();
+                triggerAdditiveBird();
                 soundLoopTimer = setInterval(() => {
-                    if (Math.random() > 0.3) triggerBird();
-                }, 2400);
+                    if (Math.random() > 0.35) triggerAdditiveBird();
+                }, 2200);
             }
-            /* 3. SERENO / VARIABILE NOTTE (Canto dei Grilli) */
+            /* 3. GRILLI (SINTESI ADDITIVA HARMONIC RESONANCE) */
             else if (key === 'moon' || key === 'moonPoco') {
                 function triggerCricket() {
                     if (!isSoundOn) return;
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
                     const t = audioCtx.currentTime;
+                    const osc1 = audioCtx.createOscillator();
+                    const osc2 = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
 
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(4600, t);
+                    osc1.type = 'sine';
+                    osc2.type = 'sine';
 
-                    gain.gain.setValueAtTime(0.03, t);
+                    osc1.frequency.setValueAtTime(4500, t);
+                    osc2.frequency.setValueAtTime(9000, t);
+
+                    gain.gain.setValueAtTime(0.025, t);
                     for (let i = 0; i < 4; i++) {
-                        gain.gain.setValueAtTime(0.03, t + i * 0.04);
-                        gain.gain.setValueAtTime(0.001, t + i * 0.04 + 0.02);
+                        gain.gain.setValueAtTime(0.025, t + i * 0.035);
+                        gain.gain.setValueAtTime(0.001, t + i * 0.035 + 0.018);
                     }
 
-                    osc.connect(gain);
+                    osc1.connect(gain);
+                    osc2.connect(gain);
                     gain.connect(audioCtx.destination);
-                    osc.start(t);
-                    osc.stop(t + 0.18);
+
+                    osc1.start(t); osc2.start(t);
+                    osc1.stop(t + 0.16); osc2.stop(t + 0.16);
                 }
 
                 triggerCricket();
                 soundLoopTimer = setInterval(() => {
-                    if (Math.random() > 0.4) triggerCricket();
-                }, 2200);
+                    if (Math.random() > 0.35) triggerCricket();
+                }, 2000);
             }
-            /* 4. CALDO ESTREMO (Frinio Cicale) */
+            /* 4. CALDO ESTREMO (CICALE CON DOPPIO BANDA D'AMPIEZZA) */
             else if (key === 'fiamma') {
                 const noiseBuf = createNoiseBuffer(2);
                 const noise = audioCtx.createBufferSource();
                 noise.buffer = noiseBuf;
                 noise.loop = true;
 
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'bandpass';
-                filter.frequency.value = 6500;
-                filter.Q.value = 5;
+                const filter1 = audioCtx.createBiquadFilter();
+                filter1.type = 'bandpass';
+                filter1.frequency.value = 6200;
+                filter1.Q.value = 4;
+
+                const filter2 = audioCtx.createBiquadFilter();
+                filter2.type = 'bandpass';
+                filter2.frequency.value = 8500;
+                filter2.Q.value = 5;
 
                 const gain = audioCtx.createGain();
-                gain.gain.value = 0.1;
+                gain.gain.value = 0.08;
 
-                noise.connect(filter);
-                filter.connect(gain);
+                noise.connect(filter1);
+                noise.connect(filter2);
+                filter1.connect(gain);
+                filter2.connect(gain);
                 gain.connect(audioCtx.destination);
                 noise.start();
-                currentAudioNodes.push(noise, filter, gain);
+                currentAudioNodes.push(noise, filter1, filter2, gain);
             }
             /* 5. VENTOSO / NEVE / FREDDO / NEBBIA / COPERTO */
             else if (key === 'ventoso' || key === 'coperto' || key === 'neve' || key === 'freddo' || key === 'nebbia') {
@@ -851,11 +883,11 @@
 
                 const filter = audioCtx.createBiquadFilter();
                 filter.type = 'bandpass';
-                filter.frequency.value = key === 'nebbia' ? 280 : (key === 'ventoso' ? 580 : 380);
-                filter.Q.value = 3;
+                filter.frequency.value = key === 'nebbia' ? 260 : (key === 'ventoso' ? 550 : 350);
+                filter.Q.value = 2.5;
 
                 const gain = audioCtx.createGain();
-                gain.gain.value = 0.12;
+                gain.gain.value = 0.1;
 
                 noise.connect(filter);
                 filter.connect(gain);
@@ -871,10 +903,10 @@
                         const t = audioCtx.currentTime;
 
                         osc.type = 'sawtooth';
-                        osc.frequency.setValueAtTime(105, t);
+                        osc.frequency.setValueAtTime(102, t);
 
                         gain.gain.setValueAtTime(0.001, t);
-                        gain.gain.linearRampToValueAtTime(0.07, t + 0.8);
+                        gain.gain.linearRampToValueAtTime(0.06, t + 0.8);
                         gain.gain.linearRampToValueAtTime(0.001, t + 2.5);
 
                         osc.connect(gain);
