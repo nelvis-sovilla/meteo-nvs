@@ -514,10 +514,16 @@
                 <span class="status-dot"></span>
                 <span id="updateIndicator">RICERCA GPS...</span>
             </div>
-            <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Schermo Intero">
-                <svg id="fullscreenIcon" viewBox="0 0 24 24" width="12" height="12" fill="#fff"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-                <span id="fullscreenText">SCHERMO INTERO</span>
-            </button>
+            <div style="display:flex; gap:6px;">
+                <!-- PULSANTE AUDIO -->
+                <button class="fullscreen-btn" id="soundBtn" onclick="toggleSound()" title="Attiva/Disattiva Audio d'Atmosfera">
+                    <span id="soundIcon">🔇</span>
+                </button>
+                <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Schermo Intero">
+                    <svg id="fullscreenIcon" viewBox="0 0 24 24" width="12" height="12" fill="#fff"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                    <span id="fullscreenText">SCHERMO INTERO</span>
+                </button>
+            </div>
         </div>
 
         <div class="search-container">
@@ -656,6 +662,88 @@
 
         const dropIconSvg = `<svg width="8" height="12" viewBox="0 0 12 18" fill="#888888" style="vertical-align: -1.5px;"><path d="M6 18c-3.3 0-6-2.7-6-6 0-3.9 6-12 6-12s6 8.1 6 12c0 3.3-2.7 6-6 6z"/></svg>`;
 
+        /* --- GESTORE CAMPIONI AUDIO REALI LOCALI --- */
+        let currentAudio = null;
+        let isSoundOn = false;
+        let activeWeatherKey = null;
+
+        const soundLibrary = {
+            birds: './audio/uccelli.mp3',
+            crickets: './audio/grilli.mp3',
+            cicadas: './audio/cicale.mp3',
+            rainLight: './audio/pioggia_debole.mp3',
+            rainHeavy: './audio/pioggia_forte.mp3',
+            thunder: './audio/temporale.mp3',
+            wind: './audio/vento.mp3'
+        };
+
+        function toggleSound() {
+            isSoundOn = !isSoundOn;
+            const icon = document.getElementById('soundIcon');
+            if (isSoundOn) {
+                icon.innerText = '🔊';
+                if (activeWeatherKey) {
+                    playWeatherSound(activeWeatherKey);
+                }
+            } else {
+                icon.innerText = '🔇';
+                stopWeatherSound();
+            }
+        }
+
+        function stopWeatherSound() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+        }
+
+        function updateWeatherAudio(iconKey) {
+            activeWeatherKey = iconKey;
+            if (isSoundOn) {
+                playWeatherSound(iconKey);
+            }
+        }
+
+        function playWeatherSound(key) {
+            stopWeatherSound();
+            if (!isSoundOn) return;
+
+            let soundUrl = null;
+            let targetVolume = 0.5;
+
+            if (['sun', 'sunPoco', 'sunCloud'].includes(key)) {
+                soundUrl = soundLibrary.birds;
+                targetVolume = 0.4;
+            } else if (['moon', 'moonPoco'].includes(key)) {
+                soundUrl = soundLibrary.crickets;
+                targetVolume = 0.4;
+            } else if (key === 'fiamma') {
+                soundUrl = soundLibrary.cicadas;
+                targetVolume = 0.5;
+            } else if (key === 'pioggiaDebole') {
+                soundUrl = soundLibrary.rainLight;
+                targetVolume = 0.3;
+            } else if (['pioggiaForte', 'grandine'].includes(key)) {
+                soundUrl = soundLibrary.rainHeavy;
+                targetVolume = 0.6;
+            } else if (key === 'temporale') {
+                soundUrl = soundLibrary.thunder;
+                targetVolume = 0.6;
+            } else if (['ventoso', 'coperto', 'neve', 'freddo', 'nebbia'].includes(key)) {
+                soundUrl = soundLibrary.wind;
+                targetVolume = 0.35;
+            }
+
+            if (soundUrl) {
+                currentAudio = new Audio(soundUrl);
+                currentAudio.loop = true;
+                currentAudio.volume = targetVolume;
+                currentAudio.play().catch(err => console.log("Audio play deferred:", err));
+            }
+        }
+
         /* ARRAY DI EMERGENZA (USATO SOLO PER RICERCHE FALLITE) */
         const fallbackCities = [
             { name: "Roma", lat: 41.9028, lon: 12.4964 },
@@ -709,7 +797,7 @@
             99: { desc: 'Temporale forte', day: 'temporale', night: 'temporale' }
         };
 
-        /* AZZERA I DATI MOSTRANDO LE SCHEDE ORARIE GRIGIE VUOTE E PULENDO IL RADAR */
+        /* AZZERA I DATI MOSTRANDO LE SCHEDE ORARIE GRIGIE VUOTE E PULENDO IL RADAR ED AUDIO */
         function clearUIData() {
             document.getElementById('mainTemp').innerText = '--°';
             document.getElementById('feelsLike').innerText = '--°';
@@ -719,6 +807,9 @@
             document.getElementById('weatherDesc').innerText = 'In aggiornamento...';
             document.getElementById('mainIcon').innerHTML = '';
             document.getElementById('moonPhaseBox').style.display = 'none';
+
+            /* Interrompe l'audio d'atmosfera in caricamento */
+            stopWeatherSound();
 
             /* Genera 12 schede orarie grigie vuote */
             const container = document.getElementById('hourlyForecast');
@@ -1051,7 +1142,8 @@
             const startTime = Date.now();
             setUpdateState("AGGIORNAMENTO...");
             try {
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,precipitation_probability,wind_speed_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+                /* USO ESCLUSIVO DEL MODELLO GLOBALE ECMWF (IFS 0.25°) */
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&models=ecmwf_ifs025&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,precipitation_probability,wind_speed_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
                 const res = await fetch(url);
                 const data = await res.json();
                 
@@ -1122,6 +1214,9 @@
 
             document.getElementById('weatherDesc').innerText = weatherInfo.desc;
             document.getElementById('mainIcon').innerHTML = standardIcons[iconKey] || standardIcons['sun'];
+
+            /* AGGIORNA L'AUDIO IN BASE ALL'ICONA REALE DEL METEO CORRENTE */
+            updateWeatherAudio(iconKey);
 
             const moonBox = document.getElementById('moonPhaseBox');
             if (!isDay) {
