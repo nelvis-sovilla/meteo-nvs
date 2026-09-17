@@ -662,24 +662,26 @@
 
         const dropIconSvg = `<svg width="8" height="12" viewBox="0 0 12 18" fill="#888888" style="vertical-align: -1.5px;"><path d="M6 18c-3.3 0-6-2.7-6-6 0-3.9 6-12 6-12s6 8.1 6 12c0 3.3-2.7 6-6 6z"/></svg>`;
 
-        /* --- MOTORE AUDIO AVANZATO (RISINTESI SPETTRALE & ADDITIVA) --- */
-        let audioCtx = null;
+        /* --- GESTORE CAMPIONI AUDIO REALI (LIBRERIA GOOGLE HTTPS HIGH-DEF) --- */
+        let currentAudio = null;
         let isSoundOn = false;
-        let currentAudioNodes = [];
-        let soundLoopTimer = null;
         let activeWeatherKey = null;
+
+        const soundLibrary = {
+            birds: 'https://actions.google.com/sounds/v1/ambiences/outdoor_birds.ogg',
+            crickets: 'https://actions.google.com/sounds/v1/ambiences/crickets_night.ogg',
+            rainLight: 'https://actions.google.com/sounds/v1/weather/rain_heavy.ogg',
+            rainHeavy: 'https://actions.google.com/sounds/v1/weather/rain_heavy.ogg',
+            thunder: 'https://actions.google.com/sounds/v1/weather/thunderstorm.ogg',
+            wind: 'https://actions.google.com/sounds/v1/weather/wind_heavy.ogg',
+            meadow: 'https://actions.google.com/sounds/v1/ambiences/meadow_day.ogg'
+        };
 
         function toggleSound() {
             isSoundOn = !isSoundOn;
             const icon = document.getElementById('soundIcon');
             if (isSoundOn) {
                 icon.innerText = '🔊';
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
                 if (activeWeatherKey) {
                     playWeatherSound(activeWeatherKey);
                 }
@@ -690,18 +692,11 @@
         }
 
         function stopWeatherSound() {
-            if (soundLoopTimer) {
-                clearInterval(soundLoopTimer);
-                clearTimeout(soundLoopTimer);
-                soundLoopTimer = null;
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
             }
-            currentAudioNodes.forEach(node => {
-                try {
-                    if (node.stop) node.stop();
-                    if (node.disconnect) node.disconnect();
-                } catch(e){}
-            });
-            currentAudioNodes = [];
         }
 
         function updateWeatherAudio(iconKey) {
@@ -711,212 +706,41 @@
             }
         }
 
-        function createNoiseBuffer(duration = 3) {
-            if (!audioCtx) return null;
-            const bufferSize = audioCtx.sampleRate * duration;
-            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-            const output = buffer.getChannelData(0);
-            for (let i = 0; i < bufferSize; i++) {
-                output[i] = Math.random() * 2 - 1;
-            }
-            return buffer;
-        }
-
         function playWeatherSound(key) {
             stopWeatherSound();
-            if (!isSoundOn || !audioCtx) return;
+            if (!isSoundOn) return;
 
-            /* 1. PIOGGIA, TEMPORALE, GRANDINE (OPZIONE 1: FILTRAGGIO SPETTRALE MULTI-STADIO) */
-            if (key === 'pioggiaDebole' || key === 'pioggiaForte' || key === 'temporale' || key === 'grandine') {
-                const noiseBuf = createNoiseBuffer(3);
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = noiseBuf;
-                noise.loop = true;
+            let soundUrl = null;
+            let targetVolume = 0.5;
 
-                /* Filtro 1: Corpo e impatto pioggia (Lowpass) */
-                const lpFilter = audioCtx.createBiquadFilter();
-                lpFilter.type = 'lowpass';
-                lpFilter.frequency.value = key === 'pioggiaDebole' ? 800 : (key === 'grandine' ? 3200 : 2200);
-
-                /* Filtro 2: Risonanza acustica delle gocce sul terreno (Bandpass) */
-                const bpFilter = audioCtx.createBiquadFilter();
-                bpFilter.type = 'bandpass';
-                bpFilter.frequency.value = key === 'grandine' ? 2500 : 1200;
-                bpFilter.Q.value = 1.2;
-
-                const gain = audioCtx.createGain();
-                gain.gain.value = key === 'pioggiaDebole' ? 0.1 : 0.25;
-
-                noise.connect(lpFilter);
-                lpFilter.connect(bpFilter);
-                bpFilter.connect(gain);
-                gain.connect(audioCtx.destination);
-                noise.start();
-                currentAudioNodes.push(noise, lpFilter, bpFilter, gain);
-
-                if (key === 'temporale') {
-                    soundLoopTimer = setInterval(() => {
-                        if (!isSoundOn) return;
-                        const t = audioCtx.currentTime;
-                        const tGain = audioCtx.createGain();
-                        tGain.gain.setValueAtTime(0.001, t);
-                        tGain.gain.exponentialRampToValueAtTime(0.6, t + 0.15);
-                        tGain.gain.exponentialRampToValueAtTime(0.001, t + 2.8);
-
-                        const tFilter = audioCtx.createBiquadFilter();
-                        tFilter.type = 'lowpass';
-                        tFilter.frequency.value = 110;
-
-                        const tNoise = audioCtx.createBufferSource();
-                        tNoise.buffer = createNoiseBuffer(3);
-                        tNoise.connect(tFilter);
-                        tFilter.connect(tGain);
-                        tGain.connect(audioCtx.destination);
-                        tNoise.start(t);
-                    }, 6000);
-                }
+            if (['sun', 'sunPoco', 'sunCloud'].includes(key)) {
+                soundUrl = soundLibrary.birds;
+                targetVolume = 0.4;
+            } else if (['moon', 'moonPoco'].includes(key)) {
+                soundUrl = soundLibrary.crickets;
+                targetVolume = 0.4;
+            } else if (key === 'fiamma') {
+                soundUrl = soundLibrary.meadow;
+                targetVolume = 0.5;
+            } else if (key === 'pioggiaDebole') {
+                soundUrl = soundLibrary.rainLight;
+                targetVolume = 0.2;
+            } else if (['pioggiaForte', 'grandine'].includes(key)) {
+                soundUrl = soundLibrary.rainHeavy;
+                targetVolume = 0.6;
+            } else if (key === 'temporale') {
+                soundUrl = soundLibrary.thunder;
+                targetVolume = 0.6;
+            } else if (['ventoso', 'coperto', 'neve', 'freddo', 'nebbia'].includes(key)) {
+                soundUrl = soundLibrary.wind;
+                targetVolume = 0.35;
             }
-            /* 2. UCCELLINI (OPZIONE 2: SINTESI ADDITIVA MULTI-OSCILLATORE HARMONIC) */
-            else if (key === 'sun' || key === 'sunPoco' || key === 'sunCloud') {
-                function triggerAdditiveBird() {
-                    if (!isSoundOn) return;
-                    const t = audioCtx.currentTime;
-                    
-                    const osc1 = audioCtx.createOscillator(); /* Tono fondamentale */
-                    const osc2 = audioCtx.createOscillator(); /* Armonica superiore */
-                    const gain = audioCtx.createGain();
 
-                    osc1.type = 'sine';
-                    osc2.type = 'sine';
-
-                    const baseFreq = 2300 + Math.random() * 500;
-                    osc1.frequency.setValueAtTime(baseFreq, t);
-                    osc1.frequency.exponentialRampToValueAtTime(baseFreq + 1200, t + 0.12);
-                    
-                    osc2.frequency.setValueAtTime(baseFreq * 2, t);
-                    osc2.frequency.exponentialRampToValueAtTime((baseFreq + 1200) * 2, t + 0.12);
-
-                    gain.gain.setValueAtTime(0.035, t);
-                    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-
-                    osc1.connect(gain);
-                    osc2.connect(gain);
-                    gain.connect(audioCtx.destination);
-
-                    osc1.start(t); osc2.start(t);
-                    osc1.stop(t + 0.13); osc2.stop(t + 0.13);
-                }
-
-                triggerAdditiveBird();
-                soundLoopTimer = setInterval(() => {
-                    if (Math.random() > 0.35) triggerAdditiveBird();
-                }, 2200);
-            }
-            /* 3. GRILLI (SINTESI ADDITIVA HARMONIC RESONANCE) */
-            else if (key === 'moon' || key === 'moonPoco') {
-                function triggerCricket() {
-                    if (!isSoundOn) return;
-                    const t = audioCtx.currentTime;
-                    const osc1 = audioCtx.createOscillator();
-                    const osc2 = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-
-                    osc1.type = 'sine';
-                    osc2.type = 'sine';
-
-                    osc1.frequency.setValueAtTime(4500, t);
-                    osc2.frequency.setValueAtTime(9000, t);
-
-                    gain.gain.setValueAtTime(0.025, t);
-                    for (let i = 0; i < 4; i++) {
-                        gain.gain.setValueAtTime(0.025, t + i * 0.035);
-                        gain.gain.setValueAtTime(0.001, t + i * 0.035 + 0.018);
-                    }
-
-                    osc1.connect(gain);
-                    osc2.connect(gain);
-                    gain.connect(audioCtx.destination);
-
-                    osc1.start(t); osc2.start(t);
-                    osc1.stop(t + 0.16); osc2.stop(t + 0.16);
-                }
-
-                triggerCricket();
-                soundLoopTimer = setInterval(() => {
-                    if (Math.random() > 0.35) triggerCricket();
-                }, 2000);
-            }
-            /* 4. CALDO ESTREMO (CICALE CON DOPPIO BANDA D'AMPIEZZA) */
-            else if (key === 'fiamma') {
-                const noiseBuf = createNoiseBuffer(2);
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = noiseBuf;
-                noise.loop = true;
-
-                const filter1 = audioCtx.createBiquadFilter();
-                filter1.type = 'bandpass';
-                filter1.frequency.value = 6200;
-                filter1.Q.value = 4;
-
-                const filter2 = audioCtx.createBiquadFilter();
-                filter2.type = 'bandpass';
-                filter2.frequency.value = 8500;
-                filter2.Q.value = 5;
-
-                const gain = audioCtx.createGain();
-                gain.gain.value = 0.08;
-
-                noise.connect(filter1);
-                noise.connect(filter2);
-                filter1.connect(gain);
-                filter2.connect(gain);
-                gain.connect(audioCtx.destination);
-                noise.start();
-                currentAudioNodes.push(noise, filter1, filter2, gain);
-            }
-            /* 5. VENTOSO / NEVE / FREDDO / NEBBIA / COPERTO */
-            else if (key === 'ventoso' || key === 'coperto' || key === 'neve' || key === 'freddo' || key === 'nebbia') {
-                const noiseBuf = createNoiseBuffer(4);
-                const noise = audioCtx.createBufferSource();
-                noise.buffer = noiseBuf;
-                noise.loop = true;
-
-                const filter = audioCtx.createBiquadFilter();
-                filter.type = 'bandpass';
-                filter.frequency.value = key === 'nebbia' ? 260 : (key === 'ventoso' ? 550 : 350);
-                filter.Q.value = 2.5;
-
-                const gain = audioCtx.createGain();
-                gain.gain.value = 0.1;
-
-                noise.connect(filter);
-                filter.connect(gain);
-                gain.connect(audioCtx.destination);
-                noise.start();
-                currentAudioNodes.push(noise, filter, gain);
-
-                if (key === 'nebbia') {
-                    function triggerFoghorn() {
-                        if (!isSoundOn) return;
-                        const osc = audioCtx.createOscillator();
-                        const gain = audioCtx.createGain();
-                        const t = audioCtx.currentTime;
-
-                        osc.type = 'sawtooth';
-                        osc.frequency.setValueAtTime(102, t);
-
-                        gain.gain.setValueAtTime(0.001, t);
-                        gain.gain.linearRampToValueAtTime(0.06, t + 0.8);
-                        gain.gain.linearRampToValueAtTime(0.001, t + 2.5);
-
-                        osc.connect(gain);
-                        gain.connect(audioCtx.destination);
-                        osc.start(t);
-                        osc.stop(t + 2.6);
-                    }
-                    triggerFoghorn();
-                    soundLoopTimer = setInterval(triggerFoghorn, 8000);
-                }
+            if (soundUrl) {
+                currentAudio = new Audio(soundUrl);
+                currentAudio.loop = true;
+                currentAudio.volume = targetVolume;
+                currentAudio.play().catch(err => console.log("Audio play deferred:", err));
             }
         }
 
