@@ -27,13 +27,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Doto:wght@700;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
-        @font-face {
-            font-family: 'Ndot 55';
-            src: url('https://fonts.cdnfonts.com/s/93184/Ndot-55.woff') format('woff');
-            font-weight: normal;
-            font-style: normal;
-        }
-
         :root {
             --bg-color: #000000;
             --card-bg: #121212;
@@ -77,7 +70,8 @@
         }
 
         .ndot-font {
-            font-family: 'Ndot 55', 'Doto', sans-serif;
+            font-family: 'Doto', monospace, sans-serif;
+            font-weight: 700;
             letter-spacing: 0.5px;
         }
 
@@ -163,7 +157,7 @@
             color: var(--text-main);
             padding: 0 20px;
             font-size: 26px;
-            font-family: 'Ndot 55', 'Doto', sans-serif;
+            font-family: 'Doto', monospace, sans-serif;
             outline: none;
             -webkit-appearance: none;
             appearance: none;
@@ -488,6 +482,16 @@
             box-shadow: 0 0 8px rgba(215, 25, 33, 0.9);
         }
 
+        /* PALLINO AZZURRO PER LA STAZIONE WEATHERAPI */
+        .station-marker-ring {
+            width: 12px;
+            height: 12px;
+            background: #00BFFF;
+            border: 2px solid #FFFFFF;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(0, 191, 255, 0.9);
+        }
+
         .cloud-tile-layer {
             filter: grayscale(100%) opacity(0.35) brightness(130%);
         }
@@ -585,52 +589,35 @@
     
     <script>
         const WEATHER_API_KEY = "7570ef57a02a41d1abe144643261709";
+        const MAX_STATION_DISTANCE_KM = 10; // RAGGIO MASSIMO DALLA CENTRALINA
+
+        /* CALCOLO DISTANZA GEOGRAFICA (FORMULA HAVERSINE) */
+        function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
 
         /* MATRICI 11x11 ICONE METEO */
         const iconsData = {
-            /* 1. Sereno (giorno) */
             sun: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,0,1,1,1,1,1,0,1,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 2. Poco nuvoloso (giorno) */
             sunPoco: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,0,1,1,1,1,1,0,1,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1,0,0,0,1,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 3. Variabile (giorno) */
             sunCloud: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,0,0,0,0,0,0,0,1,1,0,0,0,0,1,1,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 4. Nuvoloso */
             coperto: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 5. Ondata di calore */
             fiamma: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,1,1,1,0,0,1,1,0,0,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,1,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0] },
-            
-            /* 6. Sereno (notte) */
             moon: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,1,1,0,0,0,1,0,1,0,0,0,1,1,0,0,0,0,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,1,0,0,0,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 7. Poco nuvoloso / variabile (notte) */
             moonPoco: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,0,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 8. Pioggia debole */
             pioggiaDebole: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 9. Pioggia forte */
             pioggiaForte: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,1,1,0,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 10. Temporale */
             temporale: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 11. Neve */
             neve: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,1,1,0,1,0,1,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,1,0,1,0,1,1,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 12. Grandine */
             grandine: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,1,0,1,0,1,1,0,0,0,1,0,0,1,1,1,0,0,1,0,0,1,0,1,1,1,1,1,0,1,0,0,1,0,0,1,1,1,0,0,1,0,0,0,1,1,0,1,0,1,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 13. Nebbia */
             nebbia: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* 14. Freddo o ghiaccio */
             freddo: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,0,1,0,0,0,0,1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,0,1,0,1,0,0,0,0,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
-            
-            /* Ventoso */
             ventoso: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0] }
         };
 
@@ -658,14 +645,14 @@
 
         const dropIconSvg = `<svg width="8" height="12" viewBox="0 0 12 18" fill="#888888" style="vertical-align: -1.5px;"><path d="M6 18c-3.3 0-6-2.7-6-6 0-3.9 6-12 6-12s6 8.1 6 12c0 3.3-2.7 6-6 6z"/></svg>`;
 
-        /* CORRISPONDENZA CODICI WEATHERAPI -> ICONKEY */
+        /* CORRISPONDENZA CODICI WEATHERAPI -> ICONKEY (AFFINATA) */
         function mapWeatherApiCodeToIcon(code, isDay) {
             if (code === 1000) return isDay ? 'sun' : 'moon';
-            if (code === 1003) return isDay ? 'sunPoco' : 'moonPoco';
-            if (code === 1006) return isDay ? 'sunCloud' : 'moonPoco';
+            if (code === 1003 || code === 1063) return isDay ? 'sunPoco' : 'moonPoco'; // 1063 Gestito come Poco Nuvoloso
+            if (code === 1006 || code === 1150 || code === 1153) return isDay ? 'sunCloud' : 'moonPoco'; // Pioviggine isolata come nuvoloso
             if (code === 1009) return 'coperto';
             if ([1030, 1135, 1147].includes(code)) return 'nebbia';
-            if ([1063, 1150, 1153, 1180, 1183, 1186, 1240].includes(code)) return 'pioggiaDebole';
+            if ([1180, 1183, 1186, 1240].includes(code)) return 'pioggiaDebole';
             if ([1189, 1192, 1195, 1243, 1246].includes(code)) return 'pioggiaForte';
             if ([1087, 1273, 1276, 1279, 1282].includes(code)) return 'temporale';
             if ([1066, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1255, 1258].includes(code)) return 'neve';
@@ -680,7 +667,7 @@
             { name: "Belluno", lat: 46.1384, lon: 12.2163 }
         ];
 
-        let map, radarLayer, cloudLayer, referenceLayer, gpsMarker;
+        let map, radarLayer, cloudLayer, referenceLayer, gpsMarker, stationMarker;
         let radarTimestamps = [];
         let satelliteTimestamps = [];
         let currentFrameIndex = 0;
@@ -726,7 +713,6 @@
             99: { desc: 'Temporale forte', day: 'temporale', night: 'temporale' }
         };
 
-        /* AZZERA I DATI MOSTRANDO LE SCHEDE ORARIE GRIGIE VUOTE E PULENDO IL RADAR */
         function clearUIData() {
             document.getElementById('mainTemp').innerText = '--°';
             document.getElementById('feelsLike').innerText = '--°';
@@ -737,7 +723,6 @@
             document.getElementById('mainIcon').innerHTML = '';
             document.getElementById('moonPhaseBox').style.display = 'none';
 
-            /* Genera 12 schede orarie grigie vuote */
             const container = document.getElementById('hourlyForecast');
             container.innerHTML = '';
             for (let i = 0; i < 12; i++) {
@@ -750,6 +735,7 @@
             if (map) {
                 if (radarLayer) { map.removeLayer(radarLayer); radarLayer = null; }
                 if (cloudLayer) { map.removeLayer(cloudLayer); cloudLayer = null; }
+                if (stationMarker) { map.removeLayer(stationMarker); stationMarker = null; }
             }
             radarTimestamps = [];
             satelliteTimestamps = [];
@@ -767,7 +753,6 @@
             loadFavorites();
             setupControls();
             
-            /* AZZERA LA SCHERMATA ED AVVIA LA RICERCA ALL'AVVIO */
             clearUIData();
             requestLocation(true);
         });
@@ -1075,28 +1060,35 @@
                 
                 if (!openMeteoData || openMeteoData.error) throw new Error("Risposta API Open-Meteo invalida");
 
-                /* 2. FETCH OSSERVAZIONE REALE IN TEMPO REALE DA WEATHERAPI */
+                /* 2. FETCH OSSERVAZIONE REALE IN TEMPO REALE DA WEATHERAPI (CON VERIFICA SOGLIA 10 KM) */
                 let realCurrentData = null;
                 try {
                     const weatherApiUrl = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${lat},${lon}&lang=it`;
                     const weatherApiRes = await fetch(weatherApiUrl);
                     if (weatherApiRes.ok) {
-                        realCurrentData = await weatherApiRes.json();
+                        const tempRes = await weatherApiRes.json();
+                        if (tempRes && tempRes.location) {
+                            const distance = calculateDistanceKm(lat, lon, tempRes.location.lat, tempRes.location.lon);
+                            if (distance <= MAX_STATION_DISTANCE_KM) {
+                                realCurrentData = tempRes;
+                            } else {
+                                console.warn(`Stazione WeatherAPI troppo lontana (${distance.toFixed(1)} km > ${MAX_STATION_DISTANCE_KM} km). Fallback su Open-Meteo.`);
+                            }
+                        }
                     }
                 } catch (eWeatherApi) {
-                    console.warn("WeatherAPI temporaneamente non disponibile, uso fallback Open-Meteo per lo stato attuale:", eWeatherApi);
+                    console.warn("WeatherAPI non disponibile, fallback su Open-Meteo:", eWeatherApi);
                 }
 
                 localStorage.setItem('weatherData', JSON.stringify(openMeteoData));
                 
-                /* GARANTISCE ALMENO 500ms DI TEMPO DI RESET PER FEEDBACK VISIVO */
                 const elapsed = Date.now() - startTime;
                 if (elapsed < 500) {
                     await new Promise(r => setTimeout(r, 500 - elapsed));
                 }
 
                 renderWeather(openMeteoData, realCurrentData);
-                updateMapCenter(lat, lon);
+                updateMapCenter(lat, lon, realCurrentData);
                 fetchRadarData();
                 setUpdateState(statusText);
             } catch (e) {
@@ -1106,7 +1098,6 @@
         }
 
         function renderWeather(data, realCurrentData = null) {
-            /* SE WEATHERAPI È DISPONIBILE, USA DATO OSSERVATO REALE, ALTRIMENTI FALLBACK SU OPEN-METEO */
             let isDay = true;
             let iconKey = 'sun';
 
@@ -1183,7 +1174,7 @@
                 moonBox.style.display = 'none';
             }
 
-            /* RENDER PREVISIONI ORARIE ECMWF OPEN-METEO */
+            /* PREVISIONI ORARIE ECMWF OPEN-METEO */
             const container = document.getElementById('hourlyForecast');
             container.innerHTML = '';
 
@@ -1262,14 +1253,12 @@
                 minZoom: 2
             }).setView(initialMapCenter, INITIAL_ZOOM);
 
-            /* MAPPA ESRI: LIVELLO BASE (Sfondo muto scuro) */
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 14,
                 minZoom: 2,
                 zIndex: 1
             }).addTo(map);
 
-            /* MAPPA ESRI: LIVELLO TOPONOMASTICA GLOBALE (Nomi automatici) */
             referenceLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 14,
                 minZoom: 2,
@@ -1286,7 +1275,7 @@
             setTimeout(() => { if (map) map.invalidateSize(); }, 300);
         }
 
-        function updateMapCenter(lat, lon) {
+        function updateMapCenter(lat, lon, realCurrentData = null) {
             initialMapCenter = [lat, lon];
             if (map) {
                 map.setView(initialMapCenter, map.getZoom() || INITIAL_ZOOM);
@@ -1299,6 +1288,27 @@
                 });
                 gpsMarker = L.marker([lat, lon], { icon: redDotIcon, zIndexOffset: 1000 }).addTo(map);
                 
+                /* AGGIUNTA PALLINO AZZURRO CENTRALINA WEATHERAPI */
+                if (stationMarker) {
+                    map.removeLayer(stationMarker);
+                    stationMarker = null;
+                }
+
+                if (realCurrentData && realCurrentData.location) {
+                    const sLat = realCurrentData.location.lat;
+                    const sLon = realCurrentData.location.lon;
+                    const sName = realCurrentData.location.name || "WeatherAPI";
+
+                    const blueDotIcon = L.divIcon({
+                        className: 'station-marker-ring',
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    });
+                    stationMarker = L.marker([sLat, sLon], { icon: blueDotIcon, zIndexOffset: 900 })
+                        .bindTooltip(`Stazione WeatherAPI: ${sName}`, { permanent: false, direction: 'top' })
+                        .addTo(map);
+                }
+
                 setTimeout(() => { map.invalidateSize(); }, 100);
             }
         }
@@ -1313,7 +1323,6 @@
                 const slider = document.getElementById('timeSlider');
                 slider.max = Math.max(0, radarTimestamps.length - 1);
                 
-                /* PARTE DALL'INDICE 0 (IL FRAME PIÙ VECCHIO) */
                 currentFrameIndex = 0;
 
                 if (map) map.invalidateSize();
