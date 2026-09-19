@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- ICONE SVG RIDIMENSIONATE (-30 -30 160 160) -->
+    <!-- ICONE SVG -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-30 -30 160 160'><rect x='-30' y='-30' width='160' height='160' fill='%23000000'/><circle cx='34' cy='32' r='18' fill='%23FF9500'/><circle cx='30' cy='56' r='14' fill='%23FFFFFF'/><circle cx='50' cy='46' r='20' fill='%23FFFFFF'/><circle cx='70' cy='54' r='15' fill='%23FFFFFF'/><rect x='30' y='46' width='40' height='24' fill='%23FFFFFF'/><path d='M 52 72 C 45 80, 43 85, 43 88 A 9 9 0 0 0 61 88 C 61 85, 59 80, 52 72 Z' fill='%235B9BD5' transform='rotate(25 52 80)'/></svg>">
     <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-30 -30 160 160'><rect x='-30' y='-30' width='160' height='160' fill='%23000000'/><circle cx='34' cy='32' r='18' fill='%23FF9500'/><circle cx='30' cy='56' r='14' fill='%23FFFFFF'/><circle cx='50' cy='46' r='20' fill='%23FFFFFF'/><circle cx='70' cy='54' r='15' fill='%23FFFFFF'/><rect x='30' y='46' width='40' height='24' fill='%23FFFFFF'/><path d='M 52 72 C 45 80, 43 85, 43 88 A 9 9 0 0 0 61 88 C 61 85, 59 80, 52 72 Z' fill='%235B9BD5' transform='rotate(25 52 80)'/></svg>">
 
@@ -482,16 +482,6 @@
             box-shadow: 0 0 8px rgba(215, 25, 33, 0.9);
         }
 
-        /* PALLINO AZZURRO PER LA STAZIONE WEATHERAPI */
-        .station-marker-ring {
-            width: 12px;
-            height: 12px;
-            background: #00BFFF;
-            border: 2px solid #FFFFFF;
-            border-radius: 50%;
-            box-shadow: 0 0 8px rgba(0, 191, 255, 0.9);
-        }
-
         .cloud-tile-layer {
             filter: grayscale(100%) opacity(0.35) brightness(130%);
         }
@@ -588,20 +578,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        const WEATHER_API_KEY = "7570ef57a02a41d1abe144643261709";
-        const MAX_STATION_DISTANCE_KM = 10; // RAGGIO MASSIMO DALLA CENTRALINA
-
-        /* CALCOLO DISTANZA GEOGRAFICA (FORMULA HAVERSINE) */
-        function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        }
-
         /* MATRICI 11x11 ICONE METEO */
         const iconsData = {
             sun: { cols: 11, grid: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,0,1,1,1,1,1,0,1,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] },
@@ -645,21 +621,6 @@
 
         const dropIconSvg = `<svg width="8" height="12" viewBox="0 0 12 18" fill="#888888" style="vertical-align: -1.5px;"><path d="M6 18c-3.3 0-6-2.7-6-6 0-3.9 6-12 6-12s6 8.1 6 12c0 3.3-2.7 6-6 6z"/></svg>`;
 
-        /* CORRISPONDENZA CODICI WEATHERAPI -> ICONKEY (AFFINATA) */
-        function mapWeatherApiCodeToIcon(code, isDay) {
-            if (code === 1000) return isDay ? 'sun' : 'moon';
-            if (code === 1003 || code === 1063) return isDay ? 'sunPoco' : 'moonPoco'; // 1063 Gestito come Poco Nuvoloso
-            if (code === 1006 || code === 1150 || code === 1153) return isDay ? 'sunCloud' : 'moonPoco'; // Pioviggine isolata come nuvoloso
-            if (code === 1009) return 'coperto';
-            if ([1030, 1135, 1147].includes(code)) return 'nebbia';
-            if ([1180, 1183, 1186, 1240].includes(code)) return 'pioggiaDebole';
-            if ([1189, 1192, 1195, 1243, 1246].includes(code)) return 'pioggiaForte';
-            if ([1087, 1273, 1276, 1279, 1282].includes(code)) return 'temporale';
-            if ([1066, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1255, 1258].includes(code)) return 'neve';
-            if ([1069, 1072, 1204, 1207, 1237, 1249, 1252, 1261, 1264].includes(code)) return 'grandine';
-            return isDay ? 'sun' : 'moon';
-        }
-
         /* ARRAY DI EMERGENZA (USATO SOLO PER RICERCHE FALLITE) */
         const fallbackCities = [
             { name: "Roma", lat: 41.9028, lon: 12.4964 },
@@ -667,7 +628,7 @@
             { name: "Belluno", lat: 46.1384, lon: 12.2163 }
         ];
 
-        let map, radarLayer, cloudLayer, referenceLayer, gpsMarker, stationMarker;
+        let map, radarLayer, cloudLayer, referenceLayer, gpsMarker;
         let radarTimestamps = [];
         let satelliteTimestamps = [];
         let currentFrameIndex = 0;
@@ -735,7 +696,6 @@
             if (map) {
                 if (radarLayer) { map.removeLayer(radarLayer); radarLayer = null; }
                 if (cloudLayer) { map.removeLayer(cloudLayer); cloudLayer = null; }
-                if (stationMarker) { map.removeLayer(stationMarker); stationMarker = null; }
             }
             radarTimestamps = [];
             satelliteTimestamps = [];
@@ -1053,32 +1013,12 @@
             const startTime = Date.now();
             setUpdateState("AGGIORNAMENTO...");
             try {
-                /* 1. FETCH PREVISIONI ORARIE DA OPEN-METEO CON FILTRO ECMWF */
-                const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&models=ecmwf_ifs025&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,precipitation_probability,wind_speed_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+                /* FETCH DA OPEN-METEO CON MODELLO BEST_MATCH (SELEZIONE AUTOMATICA AD ALTA RISOLUZIONE) */
+                const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&models=best_match&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,precipitation_probability,wind_speed_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
                 const openMeteoRes = await fetch(openMeteoUrl);
                 const openMeteoData = await openMeteoRes.json();
                 
                 if (!openMeteoData || openMeteoData.error) throw new Error("Risposta API Open-Meteo invalida");
-
-                /* 2. FETCH OSSERVAZIONE REALE IN TEMPO REALE DA WEATHERAPI (CON VERIFICA SOGLIA 10 KM) */
-                let realCurrentData = null;
-                try {
-                    const weatherApiUrl = `https://api.weatherapi.com/v1/current.json?key=${WEATHER_API_KEY}&q=${lat},${lon}&lang=it`;
-                    const weatherApiRes = await fetch(weatherApiUrl);
-                    if (weatherApiRes.ok) {
-                        const tempRes = await weatherApiRes.json();
-                        if (tempRes && tempRes.location) {
-                            const distance = calculateDistanceKm(lat, lon, tempRes.location.lat, tempRes.location.lon);
-                            if (distance <= MAX_STATION_DISTANCE_KM) {
-                                realCurrentData = tempRes;
-                            } else {
-                                console.warn(`Stazione WeatherAPI troppo lontana (${distance.toFixed(1)} km > ${MAX_STATION_DISTANCE_KM} km). Fallback su Open-Meteo.`);
-                            }
-                        }
-                    }
-                } catch (eWeatherApi) {
-                    console.warn("WeatherAPI non disponibile, fallback su Open-Meteo:", eWeatherApi);
-                }
 
                 localStorage.setItem('weatherData', JSON.stringify(openMeteoData));
                 
@@ -1087,8 +1027,8 @@
                     await new Promise(r => setTimeout(r, 500 - elapsed));
                 }
 
-                renderWeather(openMeteoData, realCurrentData);
-                updateMapCenter(lat, lon, realCurrentData);
+                renderWeather(openMeteoData);
+                updateMapCenter(lat, lon);
                 fetchRadarData();
                 setUpdateState(statusText);
             } catch (e) {
@@ -1097,74 +1037,49 @@
             }
         }
 
-        function renderWeather(data, realCurrentData = null) {
-            let isDay = true;
-            let iconKey = 'sun';
+        function renderWeather(data) {
+            const current = data.current;
+            if (!current) return;
 
-            if (realCurrentData && realCurrentData.current) {
-                const cur = realCurrentData.current;
-                isDay = cur.is_day === 1;
+            const isDay = current.is_day === 1;
 
-                document.getElementById('mainTemp').innerText = Math.round(cur.temp_c) + '°';
-                document.getElementById('feelsLike').innerText = Math.round(cur.feelslike_c) + '°';
-                document.getElementById('humidity').innerText = (cur.humidity || 0) + '%';
-                document.getElementById('weatherDesc').innerText = cur.condition ? cur.condition.text : 'Variabile';
-
-                iconKey = mapWeatherApiCodeToIcon(cur.condition ? cur.condition.code : 1000, isDay);
-
-                const hasPrecipitation = ['temporale', 'neve', 'grandine', 'pioggiaForte', 'pioggiaDebole'].includes(iconKey);
-                if (!hasPrecipitation) {
-                    if (cur.feelslike_c >= 37) {
-                        iconKey = 'fiamma';
-                    } else if (cur.feelslike_c <= -2) {
-                        iconKey = 'freddo';
-                    } else if ((cur.wind_kph || 0) >= 45) {
-                        iconKey = 'ventoso';
-                    }
-                }
-            } else if (data && data.current) {
-                const current = data.current;
-                isDay = current.is_day === 1;
-
-                document.getElementById('mainTemp').innerText = Math.round(current.temperature_2m) + '°';
-                document.getElementById('feelsLike').innerText = Math.round(current.apparent_temperature) + '°';
-                document.getElementById('humidity').innerText = (current.relative_humidity_2m || 0) + '%';
-
-                const weatherInfo = wmoCodes[current.weather_code] || { desc: 'Variabile', day: 'sun', night: 'moon' };
-                iconKey = isDay ? weatherInfo.day : weatherInfo.night;
-
-                const currentPrecip = current.precipitation_probability || 0;
-                const currentTempFelt = current.apparent_temperature !== undefined ? current.apparent_temperature : current.temperature_2m;
-                const currentWind = current.wind_speed_10m || 0;
-
-                if (currentPrecip >= 50 && !['temporale', 'neve', 'grandine'].includes(iconKey)) {
-                    iconKey = 'pioggiaForte';
-                } else if (currentPrecip >= 35 && !['temporale', 'neve', 'grandine'].includes(iconKey)) {
-                    iconKey = 'pioggiaDebole';
-                } else if (currentPrecip < 35 && ['pioggiaDebole', 'pioggiaForte'].includes(iconKey)) {
-                    iconKey = current.weather_code === 3 ? 'coperto' : (isDay ? 'sunCloud' : 'moonPoco');
-                }
-
-                const hasPrecipitation = ['temporale', 'neve', 'grandine', 'pioggiaForte', 'pioggiaDebole'].includes(iconKey);
-                if (!hasPrecipitation) {
-                    if (currentTempFelt >= 37) {
-                        iconKey = 'fiamma';        
-                    } else if (currentTempFelt <= -2) {
-                        iconKey = 'freddo';        
-                    } else if (currentWind >= 45) {
-                        iconKey = 'ventoso';       
-                    }
-                }
-
-                document.getElementById('weatherDesc').innerText = weatherInfo.desc;
-            }
-
-            document.getElementById('mainIcon').innerHTML = standardIcons[iconKey] || standardIcons['sun'];
+            document.getElementById('mainTemp').innerText = Math.round(current.temperature_2m) + '°';
+            document.getElementById('feelsLike').innerText = Math.round(current.apparent_temperature) + '°';
+            document.getElementById('humidity').innerText = (current.relative_humidity_2m || 0) + '%';
 
             if (data.daily && data.daily.temperature_2m_min) {
                 document.getElementById('minTemp').innerText = Math.round(data.daily.temperature_2m_min[0]) + '°';
                 document.getElementById('maxTemp').innerText = Math.round(data.daily.temperature_2m_max[0]) + '°';
             }
+            
+            const weatherInfo = wmoCodes[current.weather_code] || { desc: 'Variabile', day: 'sun', night: 'moon' };
+            let iconKey = isDay ? weatherInfo.day : weatherInfo.night;
+
+            const currentPrecip = current.precipitation_probability || 0;
+            const currentTempFelt = current.apparent_temperature !== undefined ? current.apparent_temperature : current.temperature_2m;
+            const currentWind = current.wind_speed_10m || 0;
+
+            if (currentPrecip >= 50 && !['temporale', 'neve', 'grandine'].includes(iconKey)) {
+                iconKey = 'pioggiaForte';
+            } else if (currentPrecip >= 35 && !['temporale', 'neve', 'grandine'].includes(iconKey)) {
+                iconKey = 'pioggiaDebole';
+            } else if (currentPrecip < 35 && ['pioggiaDebole', 'pioggiaForte'].includes(iconKey)) {
+                iconKey = current.weather_code === 3 ? 'coperto' : (isDay ? 'sunCloud' : 'moonPoco');
+            }
+
+            const hasPrecipitation = ['temporale', 'neve', 'grandine', 'pioggiaForte', 'pioggiaDebole'].includes(iconKey);
+            if (!hasPrecipitation) {
+                if (currentTempFelt >= 37) {
+                    iconKey = 'fiamma';        
+                } else if (currentTempFelt <= -2) {
+                    iconKey = 'freddo';        
+                } else if (currentWind >= 45) {
+                    iconKey = 'ventoso';       
+                }
+            }
+
+            document.getElementById('weatherDesc').innerText = weatherInfo.desc;
+            document.getElementById('mainIcon').innerHTML = standardIcons[iconKey] || standardIcons['sun'];
 
             const moonBox = document.getElementById('moonPhaseBox');
             if (!isDay) {
@@ -1174,7 +1089,7 @@
                 moonBox.style.display = 'none';
             }
 
-            /* PREVISIONI ORARIE ECMWF OPEN-METEO */
+            /* PREVISIONI ORARIE AD ALTA RISOLUZIONE */
             const container = document.getElementById('hourlyForecast');
             container.innerHTML = '';
 
@@ -1275,7 +1190,7 @@
             setTimeout(() => { if (map) map.invalidateSize(); }, 300);
         }
 
-        function updateMapCenter(lat, lon, realCurrentData = null) {
+        function updateMapCenter(lat, lon) {
             initialMapCenter = [lat, lon];
             if (map) {
                 map.setView(initialMapCenter, map.getZoom() || INITIAL_ZOOM);
@@ -1287,27 +1202,6 @@
                     iconAnchor: [7, 7]
                 });
                 gpsMarker = L.marker([lat, lon], { icon: redDotIcon, zIndexOffset: 1000 }).addTo(map);
-                
-                /* AGGIUNTA PALLINO AZZURRO CENTRALINA WEATHERAPI */
-                if (stationMarker) {
-                    map.removeLayer(stationMarker);
-                    stationMarker = null;
-                }
-
-                if (realCurrentData && realCurrentData.location) {
-                    const sLat = realCurrentData.location.lat;
-                    const sLon = realCurrentData.location.lon;
-                    const sName = realCurrentData.location.name || "WeatherAPI";
-
-                    const blueDotIcon = L.divIcon({
-                        className: 'station-marker-ring',
-                        iconSize: [12, 12],
-                        iconAnchor: [6, 6]
-                    });
-                    stationMarker = L.marker([sLat, sLon], { icon: blueDotIcon, zIndexOffset: 900 })
-                        .bindTooltip(`Stazione WeatherAPI: ${sName}`, { permanent: false, direction: 'top' })
-                        .addTo(map);
-                }
 
                 setTimeout(() => { map.invalidateSize(); }, 100);
             }
